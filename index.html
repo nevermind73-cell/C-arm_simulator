@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Vanguard STL Viewer</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#ffffff; color:#1a2030; font-family:'Segoe UI',sans-serif; display:flex; height:100vh; overflow:hidden; }
+
+/* ── PANEL ── */
+#panel {
+  width:280px; min-width:280px; background:#f5f7fa;
+  border-right:1px solid #dde3ec;
+  display:flex; flex-direction:column; overflow:hidden;
+}
+#panel h1 {
+  font-size:12px; color:#2563eb; letter-spacing:2px; text-transform:uppercase;
+  padding:16px; border-bottom:1px solid #dde3ec; flex-shrink:0;
+}
+#panel-scroll { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:12px; }
+
+.section { display:flex; flex-direction:column; gap:8px; }
+.section-title {
+  font-size:10px; color:#8896aa; letter-spacing:1.5px; text-transform:uppercase;
+  display:flex; align-items:center; gap:6px;
+}
+.section-title::after { content:''; flex:1; height:1px; background:#e2e8f0; }
+
+/* drop zone */
+#drop-zone {
+  border:2px dashed #c5d0de; border-radius:8px; padding:20px 12px;
+  text-align:center; cursor:pointer; transition:all .2s; position:relative;
+  background:#ffffff;
+}
+#drop-zone:hover, #drop-zone.over { border-color:#2563eb; background:#eff6ff; }
+#drop-zone input { position:absolute; inset:0; opacity:0; cursor:pointer; }
+.drop-icon { font-size:26px; color:#2563eb; margin-bottom:6px; }
+.drop-text { font-size:12px; color:#64748b; line-height:1.7; }
+.drop-text strong { color:#1a2030; display:block; margin-bottom:2px; }
+.drop-hint { font-size:10px; color:#94a3b8; margin-top:4px; }
+
+/* model cards */
+.model-list { display:flex; flex-direction:column; gap:6px; }
+.model-empty { font-size:11px; color:#94a3b8; text-align:center; padding:8px 0; }
+
+.mcard {
+  background:#ffffff; border:1px solid #e2e8f0;
+  border-radius:7px; overflow:hidden; transition:border-color .15s;
+  box-shadow:0 1px 3px rgba(0,0,0,.04);
+}
+.mcard.sel { border-color:#2563eb; }
+
+.mcard-header {
+  display:flex; align-items:center; gap:7px;
+  padding:8px 10px; cursor:pointer; user-select:none;
+}
+.mdot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.mname { font-size:12px; color:#1a2030; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.minfo { font-size:10px; color:#94a3b8; flex-shrink:0; }
+.mvis  { font-size:14px; color:#94a3b8; cursor:pointer; padding:0 2px; flex-shrink:0; }
+.mvis:hover { color:#1a2030; }
+.mdel  { font-size:16px; color:#c5d0de; cursor:pointer; padding:0 2px; flex-shrink:0; }
+.mdel:hover { color:#ef4444; }
+
+.mcontrols { display:none; flex-direction:column; gap:6px; padding:0 10px 10px; border-top:1px solid #f0f4f8; }
+.mcontrols.open { display:flex; padding-top:8px; }
+
+.crow { display:flex; align-items:center; gap:7px; }
+.clbl { font-size:10px; color:#64748b; min-width:52px; }
+.cval { font-size:10px; color:#2563eb; min-width:36px; text-align:right; font-variant-numeric:tabular-nums; }
+
+input[type=range] {
+  flex:1; height:3px; -webkit-appearance:none; background:#e2e8f0;
+  border-radius:2px; outline:none; cursor:pointer; accent-color:#2563eb;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance:none; width:12px; height:12px;
+  background:#2563eb; border-radius:50%; cursor:pointer;
+}
+input[type=color] { width:26px; height:20px; border:none; background:none; cursor:pointer; padding:0; border-radius:3px; }
+
+.btn-row { display:flex; gap:6px; }
+button {
+  flex:1; padding:6px 4px; border:1px solid #dde3ec; background:#ffffff;
+  color:#334155; border-radius:6px; font-size:11px; cursor:pointer; transition:all .12s;
+}
+button:hover { background:#eff6ff; border-color:#2563eb; color:#2563eb; }
+button.active { background:#dbeafe; border-color:#2563eb; color:#1d4ed8; }
+
+/* ── VIEWPORT ── */
+#viewport { flex:1; position:relative; overflow:hidden; }
+#viewport canvas { display:block; }
+
+#hud {
+  position:absolute; top:14px; right:14px;
+  display:flex; flex-direction:column; gap:5px; pointer-events:none;
+}
+.hchip {
+  background:rgba(255,255,255,.92); border:1px solid #dde3ec;
+  border-radius:6px; padding:5px 11px; font-size:11px; display:flex; gap:8px; align-items:center;
+  box-shadow:0 1px 4px rgba(0,0,0,.08);
+}
+.hk { color:#8896aa; }
+.hv { color:#2563eb; font-weight:600; font-variant-numeric:tabular-nums; }
+
+#info { position:absolute; bottom:14px; right:14px; font-size:10px;
+        color:#b0bcc8; pointer-events:none; text-align:right; line-height:2; }
+
+/* collision warning banner */
+#collision-banner {
+  position:absolute; top:16px; left:50%; transform:translateX(-50%);
+  display:none; align-items:center; gap:8px; z-index:12;
+  background:#dc2626; color:#fff; border-radius:8px;
+  padding:9px 18px; font-size:13px; font-weight:600;
+  box-shadow:0 4px 16px rgba(220,38,38,.35);
+  animation:pulse 1s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.7;} }
+
+/* loading */
+#loading {
+  position:absolute; inset:0; background:rgba(255,255,255,.85);
+  display:none; align-items:center; justify-content:center;
+  flex-direction:column; gap:10px; z-index:10;
+}
+#loading.show { display:flex; }
+.spin { width:34px; height:34px; border:3px solid #e2e8f0;
+        border-top-color:#2563eb; border-radius:50%; animation:sp .7s linear infinite; }
+@keyframes sp { to { transform:rotate(360deg); } }
+.lmsg { font-size:12px; color:#64748b; }
+
+/* toast */
+#toast {
+  position:absolute; bottom:48px; left:50%; transform:translateX(-50%);
+  background:#1d4ed8; border:1px solid #2563eb; border-radius:8px;
+  padding:7px 18px; font-size:12px; color:#ffffff;
+  opacity:0; pointer-events:none; transition:opacity .3s; white-space:nowrap;
+  box-shadow:0 4px 12px rgba(37,99,235,.3);
+}
+#toast.show { opacity:1; }
+
+/* drag onto viewport highlight */
+#viewport.drag-over::after {
+  content:'STL 파일을 여기에 놓으세요';
+  position:absolute; inset:0;
+  border:3px dashed #2563eb; border-radius:4px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px; color:#2563eb; background:rgba(37,99,235,.04);
+  pointer-events:none;
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ PANEL ═══ -->
+<div id="panel">
+  <h1>Vanguard STL Viewer</h1>
+  <div id="panel-scroll">
+
+    <!-- VIEW -->
+    <div class="section">
+      <div class="section-title">View</div>
+      <div class="btn-row">
+        <button onclick="resetCamera()">홈으로 초기화</button>
+        <button onclick="fitAll()">전체 보기</button>
+      </div>
+      <button onclick="saveHome()" style="width:100%;background:#eff6ff;border-color:#93c5fd;color:#1d4ed8;">
+        ⊙ 현재 위치를 홈으로 저장
+      </button>
+      <div class="btn-row">
+        <button onclick="toggleGrid()">그리드 토글</button>
+        <button onclick="deleteAll()">전체 삭제</button>
+      </div>
+      <div class="btn-row" style="margin-top:4px;">
+        <button onclick="setView('front')">정면</button>
+        <button onclick="setView('side')">측면</button>
+        <button onclick="setView('top')">상면</button>
+      </div>
+
+      <!-- C-arm 회전 -->
+      <div class="section-title" style="margin-top:10px;">C-arm 회전</div>
+
+      <div style="font-size:10px;color:#64748b;margin-bottom:3px;letter-spacing:0;text-transform:none;">
+        Orbital <span style="color:#94a3b8;">(Arc 레일 회전 · LAO / RAO)</span>
+      </div>
+      <div class="btn-row">
+        <button onclick="rotateCarm('orbital', -15)" style="flex:1;">RAO 15°</button>
+        <button onclick="rotateCarm('orbital',  -5)" style="flex:1;">RAO 5°</button>
+        <button onclick="rotateCarm('orbital',   5)" style="flex:1;">LAO 5°</button>
+        <button onclick="rotateCarm('orbital',  15)" style="flex:1;">LAO 15°</button>
+      </div>
+      <div id="orbital-display" style="text-align:center;font-size:11px;color:#3b82f6;margin:2px 0 6px;">
+        Orbital: 0°
+      </div>
+
+      <div style="font-size:10px;color:#64748b;margin-bottom:3px;letter-spacing:0;text-transform:none;">
+        Oblique <span style="color:#94a3b8;">(이소센터 고정 스윙 · Cranial / Caudal)</span>
+      </div>
+      <div class="btn-row">
+        <button onclick="rotateCarm('oblique', -15)" style="flex:1;">Cra 15°</button>
+        <button onclick="rotateCarm('oblique',  -5)" style="flex:1;">Cra 5°</button>
+        <button onclick="rotateCarm('oblique',   5)" style="flex:1;">Cau 5°</button>
+        <button onclick="rotateCarm('oblique',  15)" style="flex:1;">Cau 15°</button>
+      </div>
+      <div id="oblique-display" style="text-align:center;font-size:11px;color:#8b5cf6;margin:2px 0 4px;">
+        Oblique: 0°
+      </div>
+
+      <!-- 목표 각도 설정 -->
+      <div style="font-size:10px;color:#64748b;margin-top:6px;margin-bottom:4px;letter-spacing:0;text-transform:none;">
+        목표 각도 설정 <span style="color:#94a3b8;">(입력 후 Go)</span>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
+        <label style="font-size:10px;color:#94a3b8;white-space:nowrap;">Orbital</label>
+        <input id="target-orbital" type="number" value="0" step="5"
+          style="flex:1;padding:4px 6px;font-size:11px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;color:#1e293b;"
+          oninput="updateGhost()">
+        <span style="font-size:10px;color:#94a3b8;">°</span>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+        <label style="font-size:10px;color:#94a3b8;white-space:nowrap;">Oblique</label>
+        <input id="target-oblique" type="number" value="0" step="5"
+          style="flex:1;padding:4px 6px;font-size:11px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;color:#1e293b;"
+          oninput="updateGhost()">
+        <span style="font-size:10px;color:#94a3b8;">°</span>
+      </div>
+      <button onclick="goToCarmTarget()" style="width:100%;background:#2563eb;border-color:#1d4ed8;color:#fff;font-weight:600;margin-bottom:6px;">
+        Go →
+      </button>
+
+      <div class="btn-row" style="margin-top:4px;">
+        <button onclick="resetCarm()" style="width:100%;background:#fafafa;border-color:#d1d5db;color:#6b7280;">
+          각도 초기화
+        </button>
+      </div>
+    </div>
+
+    <!-- 환자 / 베드 -->
+    <div class="section">
+      <div class="section-title">환자 / 베드</div>
+      <div class="btn-row">
+        <button onclick="togglePatientBed()" id="pb-toggle">환자/베드 숨기기</button>
+        <button onclick="toggleCollision()" id="col-toggle" style="background:#fef2f2;border-color:#fca5a5;color:#b91c1c;">충돌감지 ON</button>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;margin-top:4px;">
+        <label style="font-size:10px;color:#94a3b8;white-space:nowrap;">베드 높이</label>
+        <input id="bed-height" type="range" min="-1.5" max="1.5" step="0.05" value="0.4"
+          style="flex:1;" oninput="setBedHeight(this.value)">
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <label style="font-size:10px;color:#94a3b8;white-space:nowrap;">환자 위치</label>
+        <input id="pat-posx" type="range" min="-2" max="2" step="0.1" value="-0.4"
+          style="flex:1;" oninput="setPatientX(this.value)">
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <label style="font-size:10px;color:#94a3b8;white-space:nowrap;">베드 좌우</label>
+        <input id="bed-posz" type="range" min="-2" max="2" step="0.1" value="0"
+          style="flex:1;" oninput="setBedZ(this.value)">
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══ VIEWPORT ═══ -->
+<div id="viewport">
+  <canvas id="c"></canvas>
+  <div id="hud">
+    <div class="hchip" id="hud-count" style="display:none;">
+      <span class="hk">Models</span><span class="hv" id="hv-count">0</span>
+    </div>
+    <div class="hchip" id="hud-tri" style="display:none;">
+      <span class="hk">Triangles</span><span class="hv" id="hv-tri">0</span>
+    </div>
+  </div>
+  <div id="loading"><div class="spin"></div><div class="lmsg" id="lmsg">로딩 중...</div></div>
+  <div id="toast"></div>
+  <div id="collision-banner">
+    <span style="font-size:16px;">⚠</span>
+    <span>충돌 위험 — C-arm이 환자/베드와 접촉합니다</span>
+  </div>
+  <div id="info">
+    드래그: 회전 &nbsp;|&nbsp; 스크롤: 줌 &nbsp;|&nbsp; 우클릭: 이동
+  </div>
+</div>
+
+<!-- Three.js -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js"></script>
+<script>
+// ── STL PARSER (Binary + ASCII inline) ─────────────────
+function parseSTL(buffer) {
+  // Detect ASCII vs Binary
+  const bytes = new Uint8Array(buffer, 0, Math.min(256, buffer.byteLength));
+  const head  = new TextDecoder('utf-8', {fatal:false}).decode(bytes);
+  const isASCII = /^\s*solid\b/.test(head) && /facet\s+normal/.test(head);
+  return isASCII ? parseASCII(new TextDecoder().decode(buffer)) : parseBinary(buffer);
+}
+
+function parseBinary(buf) {
+  const dv = new DataView(buf);
+  const n  = dv.getUint32(80, true);
+  const positions = new Float32Array(n * 9);
+  const normals   = new Float32Array(n * 9);
+  let off = 84;
+  for (let i = 0; i < n; i++, off += 50) {
+    const nx=dv.getFloat32(off,true), ny=dv.getFloat32(off+4,true), nz=dv.getFloat32(off+8,true);
+    const base = i * 9;
+    for (let v = 0; v < 3; v++) {
+      const o = off + 12 + v * 12, b = base + v * 3;
+      positions[b]   = dv.getFloat32(o,   true);
+      positions[b+1] = dv.getFloat32(o+4, true);
+      positions[b+2] = dv.getFloat32(o+8, true);
+      normals[b]=nx; normals[b+1]=ny; normals[b+2]=nz;
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('normal',   new THREE.BufferAttribute(normals,   3));
+  return geo;
+}
+
+function parseASCII(text) {
+  const pos=[], norm=[];
+  const fRe = /facet\s+normal\s+([\S]+)\s+([\S]+)\s+([\S]+)/g;
+  const vRe = /vertex\s+([\S]+)\s+([\S]+)\s+([\S]+)/g;
+  let fm;
+  while ((fm = fRe.exec(text)) !== null) {
+    const nx=+fm[1], ny=+fm[2], nz=+fm[3];
+    vRe.lastIndex = fm.index;
+    let vm, cnt=0;
+    while (cnt<3 && (vm=vRe.exec(text))!==null) {
+      pos.push(+vm[1],+vm[2],+vm[3]);
+      norm.push(nx,ny,nz);
+      cnt++;
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos),  3));
+  geo.setAttribute('normal',   new THREE.BufferAttribute(new Float32Array(norm), 3));
+  return geo;
+}
+
+// ── SCENE ──────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const vp     = document.getElementById('viewport');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.shadowMap.enabled = true;
+
+const scene  = new THREE.Scene();
+scene.background = new THREE.Color(0xffffff);
+scene.fog = new THREE.FogExp2(0xffffff, 0.012);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 500);
+camera.position.set(4, 3, 6);
+
+// Lights
+scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+sun.position.set(5, 10, 7); sun.castShadow = true;
+scene.add(sun);
+const rim = new THREE.DirectionalLight(0x88aacc, 0.4);
+rim.position.set(-6, 2, -4); scene.add(rim);
+const fill = new THREE.DirectionalLight(0xccddee, 0.3);
+fill.position.set(0, -5, 0); scene.add(fill);
+
+// Grid
+let grid = new THREE.GridHelper(20, 40, 0xc8d8e8, 0xe0eaf2);
+grid.visible = false;   // 기본 OFF
+scene.add(grid);
+
+// ── C-ARM MODEL ─────────────────────────────────────────
+const carmGroup = new THREE.Group();
+scene.add(carmGroup);
+
+let carmBodyMesh = null;   // C-arm 본체 메시 (충돌 검사용)
+
+// 고스트 그룹 (목표 각도 미리보기)
+const ghostGroup = new THREE.Group();
+ghostGroup.visible = false;
+scene.add(ghostGroup);
+
+// ── 환자 / 베드 ─────────────────────────────────────────
+const patientBedGroup = new THREE.Group();
+patientBedGroup.position.y = 0.4;    // 기본 높이 (조금 올림)
+patientBedGroup.position.x = -0.4;   // 발 방향(-X)으로 약 10% 이동
+scene.add(patientBedGroup);
+const patientGroup = new THREE.Group();   // 환자 STL 전용
+
+function buildPatientBed() {
+  const g = patientBedGroup;
+  while (g.children.length) g.remove(g.children[0]);
+
+  // 베드 (직육면체) — 길이는 X축 방향 (C 개구부를 통과하는 방향)
+  const bedMat = new THREE.MeshPhongMaterial({ color:0xcbd5e1, shininess:20 });
+  // 머리쪽(+X) 끝은 유지하고 발쪽으로 늘림: 길이 5, 중심 +0.5
+  const bed = new THREE.Mesh(new THREE.BoxGeometry(5.0, 0.14, 1.2), bedMat);
+  bed.position.set(0.5, -0.45, 0);
+  bed.name = 'bed';
+  g.add(bed);
+
+  // 베드 아웃라인
+  const bedEdges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(bed.geometry),
+    new THREE.LineBasicMaterial({ color:0x64748b })
+  );
+  bedEdges.position.copy(bed.position);
+  g.add(bedEdges);
+
+  // 환자 그룹 (STL 로드)
+  g.add(patientGroup);
+}
+buildPatientBed();
+
+// 환자 STL 로드 — 베드 위에 배치, 길이축을 X(머리-발 방향)에 정렬
+function loadPatientSTLFromBuffer(buffer) {
+  const geo = parseSTL(buffer);
+  geo.computeVertexNormals();
+  geo.computeBoundingBox();
+  const box = new THREE.Box3().setFromBufferAttribute(geo.attributes.position);
+  const size = new THREE.Vector3(), center = new THREE.Vector3();
+  box.getSize(size); box.getCenter(center);
+  geo.translate(-center.x, -center.y, -center.z);
+
+  // 가장 긴 축이 몸 길이 → 약 3.8 유닛으로 스케일
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+  const s = 3.8 / maxDim;
+
+  while (patientGroup.children.length) patientGroup.remove(patientGroup.children[0]);
+  // 흰색 매끈한 표면
+  const mat  = new THREE.MeshPhongMaterial({
+    color:0xffffff, shininess:70, specular:0xdce6f5
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.name = 'patient';
+  mesh.scale.setScalar(s);
+
+  // ① 외곽 실루엣 라인 — 노멀 반전(BackSide) 헐을 살짝 확대
+  const outlineMat = new THREE.MeshBasicMaterial({
+    color:0x5b6b82, side:THREE.BackSide
+  });
+  const outline = new THREE.Mesh(geo, outlineMat);
+  outline.scale.setScalar(1.02);   // mesh(부모)의 s에 추가로 2% 확대
+  mesh.add(outline);
+
+  // ② 특징 경계선 — 오목부/접힘 등 실루엣이 놓치는 내부 경계까지 표시
+  const featEdges = new THREE.EdgesGeometry(geo, 20);   // 20° 이상 꺾인 경계
+  const featMat = new THREE.LineBasicMaterial({ color:0x5b6b82 });
+  const featLines = new THREE.LineSegments(featEdges, featMat);
+  mesh.add(featLines);   // 부모 변환 상속
+
+  // ③ 미세 엣지 — 1° 이상 꺾인 모든 경계까지 옅게 추가 (더 촘촘)
+  const fineEdges = new THREE.EdgesGeometry(geo, 1);
+  const fineMat = new THREE.LineBasicMaterial({ color:0x8ba7d4, transparent:true, opacity:0.4 });
+  const fineLines = new THREE.LineSegments(fineEdges, fineMat);
+  mesh.add(fineLines);   // 부모 변환 상속
+
+  // 어떤 모델이든 자동 정렬: 가장 긴 축 → 머리-발(X), 가장 얇은 축 → 수직(Y), 중간 → 폭(Z)
+  const axes = [
+    { e:[1,0,0], v:size.x },
+    { e:[0,1,0], v:size.y },
+    { e:[0,0,1], v:size.z }
+  ].sort((a,b) => b.v - a.v);
+  const L = axes[0].e;   // 최장축 → X
+  const M = axes[1].e;   // 중간축 → Z
+  const S = axes[2].e;   // 최단축 → Y
+  const rot = new THREE.Matrix4().set(
+    L[0], L[1], L[2], 0,   // X 출력 = 최장축
+    S[0], S[1], S[2], 0,   // Y 출력 = 최단축
+    M[0], M[1], M[2], 0,   // Z 출력 = 중간축
+    0, 0, 0, 1
+  );
+  if (rot.determinant() < 0) {   // 오른손 좌표계 유지
+    rot.elements[2] = -M[0]; rot.elements[6] = -M[1]; rot.elements[10] = -M[2];
+  }
+  // 몸 길이축(X) 기준 180° 회전 → 배가 아래로 (엎드린 자세)
+  const prone = new THREE.Matrix4().makeRotationX(Math.PI);
+  rot.premultiply(prone);
+  // 수직축(Y) 기준 180° 회전 → 머리-발 방향 반전
+  const flip = new THREE.Matrix4().makeRotationY(Math.PI);
+  rot.premultiply(flip);
+  mesh.quaternion.setFromRotationMatrix(rot);
+
+  // 베드 상판 위에 앉도록 Y 위치 자동 계산 (베드 실제 월드 상단 기준)
+  patientGroup.add(mesh);
+  mesh.position.set(0, 0, 0);
+  mesh.updateWorldMatrix(true, false);
+  const wbox = new THREE.Box3().setFromObject(mesh);
+  const bedMesh = patientBedGroup.children.find(c => c.name === 'bed');
+  let bedTop = 0.02;
+  if (bedMesh) {
+    bedMesh.updateWorldMatrix(true, false);
+    bedTop = new THREE.Box3().setFromObject(bedMesh).max.y;
+  }
+  mesh.position.y += bedTop - wbox.min.y;
+}
+
+fetch('./patient.stl')
+  .then(r => r.arrayBuffer())
+  .then(buf => loadPatientSTLFromBuffer(buf))
+  .catch(e => console.warn('환자 STL 로드 실패:', e));
+
+// 환자/베드 충돌 대상 박스
+const collisionTargets = [];
+function refreshCollisionTargets() {
+  collisionTargets.length = 0;
+  patientBedGroup.traverse(o => {
+    if (o.isMesh) {
+      const b = new THREE.Box3().setFromObject(o);
+      collisionTargets.push({ box: b, name: o.name || 'patient' });
+    }
+  });
+}
+
+// ── 충돌 감지 (경계상자 기반) ───────────────────────────
+let collisionOn = true;
+const _v = new THREE.Vector3();
+function checkCollision() {
+  if (!collisionOn || !carmBodyMesh || !patientBedGroup.visible) {
+    setCollisionUI(false); return false;
+  }
+  refreshCollisionTargets();
+  carmBodyMesh.updateWorldMatrix(true, false);
+  const pos = carmBodyMesh.geometry.attributes.position;
+  const m = carmBodyMesh.matrixWorld;
+  const STEP = Math.max(1, Math.floor(pos.count / 1500)); // 최대 ~1500 정점 샘플
+  let hit = false;
+  for (let i = 0; i < pos.count && !hit; i += STEP) {
+    _v.fromBufferAttribute(pos, i).applyMatrix4(m);
+    for (const t of collisionTargets) {
+      if (t.box.containsPoint(_v)) { hit = true; break; }
+    }
+  }
+  setCollisionUI(hit);
+  return hit;
+}
+
+function setCollisionUI(hit) {
+  const banner = document.getElementById('collision-banner');
+  if (banner) banner.style.display = hit ? 'flex' : 'none';
+  if (carmBodyMesh) {
+    carmBodyMesh.material.color.setHex(hit ? 0xffdddd : 0xffffff);
+    carmBodyMesh.material.emissive && carmBodyMesh.material.emissive.setHex(hit ? 0x661111 : 0x000000);
+  }
+}
+
+// ── 환자/베드 컨트롤 ────────────────────────────────────
+function togglePatientBed() {
+  patientBedGroup.visible = !patientBedGroup.visible;
+  document.getElementById('pb-toggle').textContent =
+    patientBedGroup.visible ? '환자/베드 숨기기' : '환자/베드 표시';
+}
+
+function toggleCollision() {
+  collisionOn = !collisionOn;
+  const btn = document.getElementById('col-toggle');
+  btn.textContent = collisionOn ? '충돌감지 ON' : '충돌감지 OFF';
+  btn.style.background  = collisionOn ? '#fef2f2' : '#f3f4f6';
+  btn.style.borderColor = collisionOn ? '#fca5a5' : '#d1d5db';
+  btn.style.color       = collisionOn ? '#b91c1c' : '#6b7280';
+}
+
+function setBedHeight(v) {
+  patientBedGroup.position.y = parseFloat(v);
+}
+
+function setPatientX(v) {
+  patientBedGroup.position.x = parseFloat(v);
+}
+
+function setBedZ(v) {
+  patientBedGroup.position.z = parseFloat(v);
+}
+
+function loadCarmSTLFromBuffer(buffer) {
+  const geo = parseSTL(buffer);
+  geo.computeVertexNormals();
+
+  // 중심 정렬
+  geo.computeBoundingBox();
+  const box = new THREE.Box3().setFromBufferAttribute(geo.attributes.position);
+  const center = new THREE.Vector3();
+  const size   = new THREE.Vector3();
+  box.getCenter(center);
+  box.getSize(size);
+  geo.translate(-center.x, -center.y, -center.z);
+
+  // 씬 크기에 맞게 스케일 (약 4 유닛)
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+  const s = 4.0 / maxDim;
+
+  // 기존 내용 비우고 새 메시 추가
+  while (carmGroup.children.length) carmGroup.remove(carmGroup.children[0]);
+
+  // 본체 — 흰색
+  const mat  = new THREE.MeshPhongMaterial({ color:0xffffff, shininess:60 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.scale.setScalar(s);
+  carmGroup.add(mesh);
+  carmBodyMesh = mesh;   // 충돌 검사용 참조
+
+  // 아웃라인 ① BackSide 확대 메시 (면 외곽)
+  const outlineMat = new THREE.MeshBasicMaterial({
+    color: 0x334155, side: THREE.BackSide
+  });
+  const outlineMesh = new THREE.Mesh(geo.clone(), outlineMat);
+  outlineMesh.scale.setScalar(s * 1.012);
+  carmGroup.add(outlineMesh);
+
+  // 아웃라인 ② EdgesGeometry (누락 엣지 보완)
+  const edgesGeo = new THREE.EdgesGeometry(geo, 20); // 20° 이상 꺾인 엣지만
+  const edgesMat = new THREE.LineBasicMaterial({ color: 0x334155, linewidth: 1 });
+  const edges = new THREE.LineSegments(edgesGeo, edgesMat);
+  edges.scale.setScalar(s);
+  carmGroup.add(edges);
+
+  // 고스트 동기화 — 반투명 파란 메시
+  while (ghostGroup.children.length) ghostGroup.remove(ghostGroup.children[0]);
+  const ghostMat = new THREE.MeshBasicMaterial({
+    color: 0x3b82f6, transparent: true, opacity: 0.28,
+    side: THREE.DoubleSide, depthWrite: false, depthTest: false
+  });
+  const ghostMesh = new THREE.Mesh(geo.clone(), ghostMat);
+  ghostMesh.scale.setScalar(s);
+  ghostMesh.renderOrder = 999;
+  ghostGroup.add(ghostMesh);
+  const ghostEdgesMat = new THREE.LineBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0.6, depthTest: false });
+  const ghostEdges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), ghostEdgesMat);
+  ghostEdges.scale.setScalar(s);
+  ghostEdges.renderOrder = 1000;
+  ghostGroup.add(ghostEdges);
+}
+
+// 서버에서 기본 C-arm STL 로드
+fetch('./carm.stl')
+  .then(r => r.arrayBuffer())
+  .then(buf => loadCarmSTLFromBuffer(buf))
+  .catch(e => console.warn('C-arm STL 로드 실패:', e));
+
+// ── MODEL REGISTRY ─────────────────────────────────────
+const PALETTE = ['#4a9eff','#ff6b6b','#6bffb8','#ffcc4a','#cc6bff',
+                 '#ff9966','#66ffff','#ff66cc','#99ff66','#ff66aa'];
+let models = [], selId = null, palIdx = 0;
+
+function addSTL(buffer, filename) {
+  showLoad(`${filename} 파싱 중...`);
+  setTimeout(() => {  // let UI update first
+    try {
+      const geo = parseSTL(buffer);
+      geo.computeVertexNormals();
+      geo.computeBoundingBox();
+
+      // Center geometry
+      const box = new THREE.Box3();
+      box.setFromBufferAttribute(geo.attributes.position);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      geo.translate(-center.x, -center.y, -center.z);
+
+      // Auto-scale to fit ~2 units
+      box.setFromBufferAttribute(geo.attributes.position);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const maxDim = Math.max(size.x, size.y, size.z) || 1;
+      const baseScale = 2.5 / maxDim;
+
+      const hexColor = PALETTE[palIdx++ % PALETTE.length];
+      const mat = new THREE.MeshPhongMaterial({
+        color: new THREE.Color(hexColor),
+        specular: new THREE.Color(0x223344),
+        shininess: 60, transparent: true, opacity: 0.92,
+        side: THREE.DoubleSide
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.castShadow = true; mesh.receiveShadow = true;
+
+      const group = new THREE.Group();
+      group.add(mesh);
+      group.scale.setScalar(baseScale);
+      scene.add(group);
+
+      const triCount = geo.attributes.position.count / 3 | 0;
+      const id = `m${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+      models.push({
+        id, name: filename.replace(/\.stl$/i,''),
+        mesh, group, mat,
+        color: hexColor,
+        visible: true,
+        wireframe: false,
+        scale: 1,     // multiplier on top of baseScale
+        baseScale,
+        px:0, py:0, pz:0,
+        ry:0,
+        opacity: 0.92,
+        triCount
+      });
+
+      hideLoad();
+      renderList();
+      updateHUD();
+      fitAll();
+      showToast(`✓  ${filename.replace(/\.stl$/i,'')}  로드 (${fmtTri(triCount)})`);
+    } catch(e) {
+      hideLoad();
+      showToast(`✗  파싱 실패: ${filename}`);
+      console.error(e);
+    }
+  }, 30);
+}
+
+function fmtTri(n) { return n>1000 ? (n/1000).toFixed(1)+'k tri' : n+' tri'; }
+function fmtTriTotal() {
+  const t = models.reduce((s,m)=>s+m.triCount,0);
+  return t>1000 ? (t/1000).toFixed(1)+'k' : String(t);
+}
+
+// ── MODEL LIST UI ──────────────────────────────────────
+function renderList() {
+  const el = document.getElementById('model-list');
+  if (!el) return;   // 업로드 UI 제거됨 — 모델 리스트 없음
+  document.getElementById('model-count').textContent = models.length ? `(${models.length})` : '';
+
+  if (!models.length) {
+    el.innerHTML = '<div class="model-empty">업로드된 모델 없음</div>';
+    return;
+  }
+
+  el.innerHTML = models.map(m => `
+<div class="mcard ${m.id===selId?'sel':''}" id="mc-${m.id}">
+  <div class="mcard-header" onclick="toggleSel('${m.id}')">
+    <div class="mdot" style="background:${m.color}"></div>
+    <div class="mname" title="${m.name}">${m.name}</div>
+    <div class="minfo">${fmtTri(m.triCount)}</div>
+    <span class="mvis" onclick="event.stopPropagation();toggleVis('${m.id}')" title="${m.visible?'숨기기':'보이기'}">${m.visible?'◉':'○'}</span>
+    <span class="mdel" onclick="event.stopPropagation();delModel('${m.id}')" title="삭제">×</span>
+  </div>
+  <div class="mcontrols ${m.id===selId?'open':''}" id="mctl-${m.id}">
+    <div class="crow">
+      <span class="clbl">Color</span>
+      <input type="color" value="${m.color}" oninput="setColor('${m.id}',this.value)" onclick="event.stopPropagation()">
+      <button style="flex:none;padding:4px 10px;font-size:10px;margin-left:6px;" onclick="toggleWire('${m.id}')">${m.wireframe?'Solid':'Wireframe'}</button>
+    </div>
+    <div class="crow">
+      <span class="clbl">Opacity</span>
+      <input type="range" min="0.05" max="1" step="0.05" value="${m.opacity}"
+        oninput="setOpacity('${m.id}',this.value,this)">
+      <span class="cval" id="opv-${m.id}">${Math.round(m.opacity*100)}%</span>
+    </div>
+    <div class="crow">
+      <span class="clbl">Scale</span>
+      <input type="range" min="0.05" max="10" step="0.05" value="${m.scale}"
+        oninput="setScale('${m.id}',this.value,this)">
+      <span class="cval" id="scv-${m.id}">${m.scale.toFixed(2)}x</span>
+    </div>
+    <div class="crow">
+      <span class="clbl">Rotate Y</span>
+      <input type="range" min="-180" max="180" step="1" value="${m.ry}"
+        oninput="setRot('${m.id}',this.value,this)">
+      <span class="cval" id="ryv-${m.id}">${m.ry}°</span>
+    </div>
+    <div class="crow">
+      <span class="clbl">Pos X</span>
+      <input type="range" min="-5" max="5" step="0.05" value="${m.px}"
+        oninput="setPos('${m.id}','x',this.value,this)">
+      <span class="cval" id="pxv-${m.id}">${m.px.toFixed(2)}</span>
+    </div>
+    <div class="crow">
+      <span class="clbl">Pos Y</span>
+      <input type="range" min="-5" max="5" step="0.05" value="${m.py}"
+        oninput="setPos('${m.id}','y',this.value,this)">
+      <span class="cval" id="pyv-${m.id}">${m.py.toFixed(2)}</span>
+    </div>
+    <div class="crow">
+      <span class="clbl">Pos Z</span>
+      <input type="range" min="-5" max="5" step="0.05" value="${m.pz}"
+        oninput="setPos('${m.id}','z',this.value,this)">
+      <span class="cval" id="pzv-${m.id}">${m.pz.toFixed(2)}</span>
+    </div>
+    <div class="btn-row" style="margin-top:2px;">
+      <button onclick="autoFitModel('${m.id}')">Auto-fit</button>
+      <button onclick="resetModel('${m.id}')">Reset</button>
+      <button onclick="delModel('${m.id}')" style="color:#f85149;border-color:#f85149;">삭제</button>
+    </div>
+  </div>
+</div>`).join('');
+}
+
+function toggleSel(id) { selId = selId===id ? null : id; renderList(); }
+
+function toggleVis(id) {
+  const m=find(id); if(!m) return;
+  m.visible = !m.visible; m.group.visible = m.visible; renderList();
+}
+
+function delModel(id) {
+  const m=find(id); if(!m) return;
+  scene.remove(m.group);
+  m.group.traverse(o=>{ if(o.geometry) o.geometry.dispose(); if(o.material) o.material.dispose(); });
+  models = models.filter(x=>x.id!==id);
+  if(selId===id) selId=null;
+  renderList(); updateHUD();
+}
+
+function deleteAll() {
+  [...models].forEach(m=>delModel(m.id));
+}
+
+function setColor(id,hex) { const m=find(id); if(m){ m.color=hex; m.mat.color.set(hex); } }
+
+function setOpacity(id,val,inp) {
+  const m=find(id); if(!m) return;
+  m.opacity=+val; m.mat.opacity=m.opacity; m.mat.transparent=m.opacity<1;
+  document.getElementById('opv-'+id).textContent=Math.round(m.opacity*100)+'%';
+}
+
+function setScale(id,val,inp) {
+  const m=find(id); if(!m) return;
+  m.scale=+val; m.group.scale.setScalar(m.scale*m.baseScale);
+  document.getElementById('scv-'+id).textContent=(+val).toFixed(2)+'x';
+}
+
+function setRot(id,val,inp) {
+  const m=find(id); if(!m) return;
+  m.ry=+val; m.group.rotation.y=THREE.MathUtils.degToRad(+val);
+  document.getElementById('ryv-'+id).textContent=(+val)+'°';
+}
+
+function setPos(id,axis,val,inp) {
+  const m=find(id); if(!m) return;
+  m['p'+axis]=+val; m.group.position[axis]=+val;
+  document.getElementById('p'+axis+'v-'+id).textContent=(+val).toFixed(2);
+}
+
+function toggleWire(id) {
+  const m=find(id); if(!m) return;
+  m.wireframe=!m.wireframe; m.mat.wireframe=m.wireframe; renderList();
+}
+
+function autoFitModel(id) { resetModel(id); }
+
+function resetModel(id) {
+  const m=find(id); if(!m) return;
+  m.scale=1; m.px=0; m.py=0; m.pz=0; m.ry=0;
+  m.group.scale.setScalar(m.baseScale);
+  m.group.position.set(0,0,0);
+  m.group.rotation.set(0,0,0);
+  renderList();
+}
+
+function find(id) { return models.find(m=>m.id===id); }
+
+// ── HUD ────────────────────────────────────────────────
+function updateHUD() {
+  const n = models.length;
+  document.getElementById('hud-count').style.display = n>0?'flex':'none';
+  document.getElementById('hud-tri').style.display   = n>0?'flex':'none';
+  document.getElementById('hv-count').textContent = n;
+  document.getElementById('hv-tri').textContent = fmtTriTotal();
+}
+
+// ── CAMERA ─────────────────────────────────────────────
+let drag=false, rDrag=false, lx=0, ly=0;
+// 기본 시점: 45° 수평 회전, 45° 앙각 (등각 시점)
+const DEFAULT = { theta: -138.77*Math.PI/180, phi: 80.83*Math.PI/180, radius: 8 };
+let theta=DEFAULT.theta, phi=DEFAULT.phi, radius=DEFAULT.radius;
+const target = new THREE.Vector3(0,0,0);
+let homeState = null;
+
+function saveHome() {
+  homeState = {
+    theta, phi, radius, tx: target.x, ty: target.y, tz: target.z,
+    orbital: carmAngle.orbital, oblique: carmAngle.oblique
+  };
+  const btn = document.querySelector('button[onclick="saveHome()"]');
+  if (btn) {
+    btn.textContent = '✓ 홈 위치 저장됨';
+    btn.style.background = '#dcfce7';
+    btn.style.borderColor = '#86efac';
+    btn.style.color = '#166534';
+    setTimeout(() => {
+      btn.textContent = '⊙ 현재 위치를 홈으로 저장';
+      btn.style.background = '#eff6ff';
+      btn.style.borderColor = '#93c5fd';
+      btn.style.color = '#1d4ed8';
+    }, 2000);
+  }
+}
+
+function resetCamera() {
+  if (homeState) {
+    theta = homeState.theta; phi = homeState.phi; radius = homeState.radius;
+    target.set(homeState.tx, homeState.ty, homeState.tz);
+    carmAngle.orbital = homeState.orbital;
+    carmAngle.oblique = homeState.oblique;
+    applyCarmAngles();
+    document.getElementById('orbital-display').textContent = 'Orbital: ' + carmAngle.orbital + '°';
+    document.getElementById('oblique-display').textContent = 'Oblique: ' + carmAngle.oblique + '°';
+  } else if (models.length > 0) {
+    fitAll();
+    theta = DEFAULT.theta; phi = DEFAULT.phi;
+  } else {
+    theta = DEFAULT.theta; phi = DEFAULT.phi; radius = DEFAULT.radius;
+    target.set(0, 0, 0);
+  }
+}
+
+function setView(v) {
+  if(v==='front')  { theta=0;           phi=Math.PI/2; }
+  if(v==='side')   { theta=Math.PI/2;   phi=Math.PI/2; }
+  if(v==='top')    { theta=Math.PI;      phi=0.05; }
+}
+
+// C-arm 각도 상태 (도 단위)
+// Orbital : Arc 레일을 따라 회전 (X축 기준) → Cranial(+) / Caudal(-)
+// Oblique  : 이소센터 고정, 전체 C-arm 좌우 스윙 (Y축 기준) → RAO(+) / LAO(-)
+let carmAngle = { orbital: 0, oblique: 0 };
+
+function applyCarmAngles() {
+  const orbRad = carmAngle.orbital * Math.PI / 180;
+  const oblRad = carmAngle.oblique * Math.PI / 180;
+
+  // Orbital(X축) → Oblique(Z축: 정면 시소 기울기) 쿼터니언 합성
+  const orbQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), orbRad);
+  const oblQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1), oblRad);
+  carmGroup.quaternion.copy(oblQ).multiply(orbQ);
+}
+
+function rotateCarm(axis, deg) {
+  if (axis === 'orbital') {
+    carmAngle.orbital = Math.max(-89, Math.min(89, carmAngle.orbital + deg));
+    document.getElementById('orbital-display').textContent =
+      'Orbital: ' + carmAngle.orbital + '°';
+  } else {
+    carmAngle.oblique = ((carmAngle.oblique + deg) % 360 + 360) % 360;
+    if (carmAngle.oblique > 180) carmAngle.oblique -= 360;
+    document.getElementById('oblique-display').textContent =
+      'Oblique: ' + carmAngle.oblique + '°';
+  }
+  applyCarmAngles();
+}
+
+function resetCarm() {
+  carmAngle = { orbital: 0, oblique: 0 };
+  carmGroup.quaternion.identity();
+  document.getElementById('orbital-display').textContent = 'Orbital: 0°';
+  document.getElementById('oblique-display').textContent = 'Oblique: 0°';
+  ghostGroup.visible = false;
+}
+
+// ── 고스트 / 목표 각도 ──────────────────────────────────
+function applyAnglesToGroup(group, orbital, oblique) {
+  const orbRad = orbital * Math.PI / 180;
+  const oblRad = oblique * Math.PI / 180;
+  const orbQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), orbRad);
+  const oblQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1), oblRad);
+  group.quaternion.copy(oblQ).multiply(orbQ);
+}
+
+function updateGhost() {
+  const tOrb = parseFloat(document.getElementById('target-orbital').value) || 0;
+  const tObl = parseFloat(document.getElementById('target-oblique').value) || 0;
+  const same = (Math.round(tOrb) === Math.round(carmAngle.orbital)) &&
+               (Math.round(tObl) === Math.round(carmAngle.oblique));
+  ghostGroup.visible = !same;
+  if (!same) applyAnglesToGroup(ghostGroup, tOrb, tObl);
+}
+
+let carmAnimId = null;
+function goToCarmTarget() {
+  const tOrb = parseFloat(document.getElementById('target-orbital').value) || 0;
+  const tObl = parseFloat(document.getElementById('target-oblique').value) || 0;
+  const startOrb = carmAngle.orbital;
+  const startObl = carmAngle.oblique;
+  const DURATION = 1800;
+  let startTs = null;
+  if (carmAnimId) cancelAnimationFrame(carmAnimId);
+
+  function step(ts) {
+    if (!startTs) startTs = ts;
+    const raw = Math.min((ts - startTs) / DURATION, 1);
+    const t = raw < 0.5 ? 2*raw*raw : -1 + (4 - 2*raw)*raw; // easeInOut
+    carmAngle.orbital = startOrb + (tOrb - startOrb) * t;
+    carmAngle.oblique = startObl + (tObl - startObl) * t;
+    applyCarmAngles();
+    document.getElementById('orbital-display').textContent =
+      'Orbital: ' + Math.round(carmAngle.orbital) + '°';
+    document.getElementById('oblique-display').textContent =
+      'Oblique: ' + Math.round(carmAngle.oblique) + '°';
+    if (raw < 1) {
+      carmAnimId = requestAnimationFrame(step);
+    } else {
+      carmAngle.orbital = tOrb;
+      carmAngle.oblique = tObl;
+      applyCarmAngles();
+      ghostGroup.visible = false;
+      carmAnimId = null;
+    }
+  }
+  carmAnimId = requestAnimationFrame(step);
+}
+
+function fitAll() {
+  if(!models.length) return;
+  const box = new THREE.Box3();
+  models.filter(m=>m.visible).forEach(m=>box.expandByObject(m.group));
+  if(box.isEmpty()) return;
+  const center=new THREE.Vector3(), size=new THREE.Vector3();
+  box.getCenter(center); box.getSize(size);
+  const maxDim = Math.max(size.x, size.y, size.z);
+  target.copy(center);
+  radius = maxDim * 1.6 || 6;
+}
+
+canvas.addEventListener('mousedown', e=>{ drag=true; rDrag=e.button===2; lx=e.clientX; ly=e.clientY; });
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+window.addEventListener('mouseup', ()=>drag=false);
+window.addEventListener('mousemove', e=>{
+  if(!drag) return;
+  const dx=e.clientX-lx, dy=e.clientY-ly; lx=e.clientX; ly=e.clientY;
+  if(rDrag) { target.x-=dx*.004*radius/5; target.y+=dy*.004*radius/5; }
+  else { theta-=dx*.008; phi=Math.max(.01,Math.min(Math.PI-.01,phi+dy*.008)); }
+});
+canvas.addEventListener('wheel', e=>{
+  radius=Math.max(.05, radius*Math.pow(1.001, e.deltaY));
+},{passive:true});
+
+function updateCamera() {
+  camera.position.set(
+    target.x + radius*Math.sin(phi)*Math.sin(theta),
+    target.y + radius*Math.cos(phi),
+    target.z + radius*Math.sin(phi)*Math.cos(theta)
+  );
+  camera.lookAt(target);
+}
+
+// ── GRID ───────────────────────────────────────────────
+function toggleGrid() { grid.visible=!grid.visible; }
+
+// ── RESIZE ─────────────────────────────────────────────
+function resize() {
+  const w=vp.clientWidth, h=vp.clientHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize); resize();
+
+// ── RENDER ─────────────────────────────────────────────
+(function loop(){ requestAnimationFrame(loop); updateCamera(); checkCollision(); renderer.render(scene,camera); })();
+
+// ── TOAST / LOADING ────────────────────────────────────
+function showLoad(msg) { document.getElementById('lmsg').textContent=msg; document.getElementById('loading').classList.add('show'); }
+function hideLoad()    { document.getElementById('loading').classList.remove('show'); }
+let toastT;
+function showToast(msg) {
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+// ── INIT ───────────────────────────────────────────────
+renderList();
+</script>
+</body>
+</html>
