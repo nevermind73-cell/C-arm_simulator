@@ -449,8 +449,8 @@ function loadPatientSTLFromBuffer(buffer) {
   const featLines = new THREE.LineSegments(featEdges, featMat);
   mesh.add(featLines);   // 부모 변환 상속
 
-  // ③ 미세 엣지 — 1° 이상 꺾인 모든 경계까지 옅게 추가 (더 촘촘)
-  const fineEdges = new THREE.EdgesGeometry(geo, 1);
+  // ③ 미세 엣지 — 0.5° 이상 경계 옅게 추가
+  const fineEdges = new THREE.EdgesGeometry(geo, 0.5);
   const fineMat = new THREE.LineBasicMaterial({ color:0x8ba7d4, transparent:true, opacity:0.4 });
   const fineLines = new THREE.LineSegments(fineEdges, fineMat);
   mesh.add(fineLines);   // 부모 변환 상속
@@ -614,20 +614,18 @@ function loadCarmSTLFromBuffer(buffer) {
   edges.scale.setScalar(s);
   carmGroup.add(edges);
 
-  // 고스트 동기화 — 반투명 파란 메시
+  // 고스트 동기화 — 반투명 파란 메시 (깊이 테스트 유지 → 베드·환자와 입체적으로 가려짐)
   while (ghostGroup.children.length) ghostGroup.remove(ghostGroup.children[0]);
   const ghostMat = new THREE.MeshBasicMaterial({
     color: 0x3b82f6, transparent: true, opacity: 0.28,
-    side: THREE.DoubleSide, depthWrite: false, depthTest: false
+    side: THREE.DoubleSide, depthWrite: false, depthTest: true
   });
   const ghostMesh = new THREE.Mesh(geo.clone(), ghostMat);
   ghostMesh.scale.setScalar(s);
-  ghostMesh.renderOrder = 999;
   ghostGroup.add(ghostMesh);
-  const ghostEdgesMat = new THREE.LineBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0.6, depthTest: false });
+  const ghostEdgesMat = new THREE.LineBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0.6, depthTest: true });
   const ghostEdges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), ghostEdgesMat);
   ghostEdges.scale.setScalar(s);
-  ghostEdges.renderOrder = 1000;
   ghostGroup.add(ghostEdges);
 }
 
