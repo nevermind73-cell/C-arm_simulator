@@ -393,9 +393,9 @@ function buildPatientBed() {
 
   // 베드 (직육면체) — 길이는 X축 방향 (C 개구부를 통과하는 방향)
   const bedMat = new THREE.MeshPhongMaterial({ color:0xcbd5e1, shininess:20 });
-  // 머리쪽(+X) 끝은 유지하고 발쪽으로 늘림: 길이 5, 중심 +0.5
-  const bed = new THREE.Mesh(new THREE.BoxGeometry(5.0, 0.14, 1.2), bedMat);
-  bed.position.set(0.5, -0.45, 0);
+  // 머리쪽(-X -2.5) 연장 유지, 발쪽(+X)은 3.0으로 복귀: 길이 5.5, 중심 +0.25
+  const bed = new THREE.Mesh(new THREE.BoxGeometry(5.5, 0.14, 1.2), bedMat);
+  bed.position.set(0.25, -0.45, 0);
   bed.name = 'bed';
   g.add(bed);
 
@@ -535,12 +535,21 @@ function checkCollision() {
   return hit;
 }
 
+let carmAtTarget = false;   // 목표 위치 도달 여부 (녹색 표시)
+
 function setCollisionUI(hit) {
   const banner = document.getElementById('collision-banner');
   if (banner) banner.style.display = hit ? 'flex' : 'none';
   if (carmBodyMesh) {
-    carmBodyMesh.material.color.setHex(hit ? 0xffdddd : 0xffffff);
-    carmBodyMesh.material.emissive && carmBodyMesh.material.emissive.setHex(hit ? 0x661111 : 0x000000);
+    // 충돌 → 분홍, 목표 도달 → 녹색, 그 외 → 흰색
+    const color    = hit ? 0xffdddd : (carmAtTarget ? 0xbbf7d0 : 0xffffff);
+    const emissive = hit ? 0x661111 : (carmAtTarget ? 0x22c55e : 0x000000);
+    carmBodyMesh.material.color.setHex(color);
+    if (carmBodyMesh.material.emissive) {
+      carmBodyMesh.material.emissive.setHex(emissive);
+      // 음영진 면까지 고르게 채우도록 발광 강도 조절
+      carmBodyMesh.material.emissiveIntensity = carmAtTarget && !hit ? 0.6 : (hit ? 0.5 : 1);
+    }
   }
 }
 
@@ -935,6 +944,7 @@ function rotateCarm(axis, deg) {
       'Oblique: ' + carmAngle.oblique + '°';
   }
   applyCarmAngles();
+  carmAtTarget = false;   // 수동 회전 → 목표 표시 해제
 }
 
 function resetCarm() {
@@ -943,6 +953,7 @@ function resetCarm() {
   document.getElementById('orbital-display').textContent = 'Orbital: 0°';
   document.getElementById('oblique-display').textContent = 'Oblique: 0°';
   ghostGroup.visible = false;
+  carmAtTarget = false;
 }
 
 // ── 고스트 / 목표 각도 ──────────────────────────────────
@@ -971,6 +982,7 @@ function goToCarmTarget() {
   const startObl = carmAngle.oblique;
   const DURATION = 1800;
   let startTs = null;
+  carmAtTarget = false;   // 이동 중에는 해제
   if (carmAnimId) cancelAnimationFrame(carmAnimId);
 
   function step(ts) {
@@ -992,6 +1004,7 @@ function goToCarmTarget() {
       applyCarmAngles();
       ghostGroup.visible = false;
       carmAnimId = null;
+      carmAtTarget = true;   // 목표 도달 → 녹색 표시
     }
   }
   carmAnimId = requestAnimationFrame(step);
