@@ -541,14 +541,14 @@ function setCollisionUI(hit) {
   const banner = document.getElementById('collision-banner');
   if (banner) banner.style.display = hit ? 'flex' : 'none';
   if (carmBodyMesh) {
-    // 충돌 → 부드러운 빨강, 목표 도달 → 녹색, 그 외 → 흰색
-    const color    = hit ? 0xff8a8a : (carmAtTarget ? 0xbbf7d0 : 0xffffff);
-    const emissive = hit ? 0xcc3b3b : (carmAtTarget ? 0x22c55e : 0x000000);
+    // 충돌 → 부드러운 빨강, 목표 도달 → 부드러운 녹색(동일 톤), 그 외 → 흰색
+    const color    = hit ? 0xff8a8a : (carmAtTarget ? 0x8ae89a : 0xffffff);
+    const emissive = hit ? 0xcc3b3b : (carmAtTarget ? 0x3bb34d : 0x000000);
     carmBodyMesh.material.color.setHex(color);
     if (carmBodyMesh.material.emissive) {
       carmBodyMesh.material.emissive.setHex(emissive);
       // 음영진 면까지 고르게 채우도록 발광 강도 조절
-      carmBodyMesh.material.emissiveIntensity = hit ? 0.45 : (carmAtTarget ? 0.6 : 1);
+      carmBodyMesh.material.emissiveIntensity = (hit || carmAtTarget) ? 0.45 : 1;
     }
   }
 }
