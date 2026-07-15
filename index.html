@@ -180,10 +180,10 @@ button.active { background:#dbeafe; border-color:#2563eb; color:#1d4ed8; }
         Orbital <span style="color:#94a3b8;">(Arc 레일 회전 · LAO / RAO)</span>
       </div>
       <div class="btn-row">
-        <button onclick="rotateCarm('orbital', -15)" style="flex:1;">RAO 15°</button>
-        <button onclick="rotateCarm('orbital',  -5)" style="flex:1;">RAO 5°</button>
-        <button onclick="rotateCarm('orbital',   5)" style="flex:1;">LAO 5°</button>
-        <button onclick="rotateCarm('orbital',  15)" style="flex:1;">LAO 15°</button>
+        <button onclick="rotateCarm('orbital',  15)" style="flex:1;">RAO 15°</button>
+        <button onclick="rotateCarm('orbital',   5)" style="flex:1;">RAO 5°</button>
+        <button onclick="rotateCarm('orbital',  -5)" style="flex:1;">LAO 5°</button>
+        <button onclick="rotateCarm('orbital', -15)" style="flex:1;">LAO 15°</button>
       </div>
       <div id="orbital-display" style="text-align:center;font-size:11px;color:#3b82f6;margin:2px 0 6px;">
         Orbital: 0°
@@ -626,8 +626,8 @@ function loadCarmSTLFromBuffer(buffer) {
   outlineMesh.scale.setScalar(s * 1.006);
   carmGroup.add(outlineMesh);
 
-  // 아웃라인 ② 특징 엣지 — 3° 이상 경계
-  const edgesGeo = new THREE.EdgesGeometry(geo, 3);
+  // 아웃라인 ② 특징 엣지 — 3.2° 이상 경계
+  const edgesGeo = new THREE.EdgesGeometry(geo, 3.2);
   const edgesMat = new THREE.LineBasicMaterial({ color: 0x475569, transparent: true, opacity: 0.85 });
   const edges = new THREE.LineSegments(edgesGeo, edgesMat);
   edges.scale.setScalar(s);
