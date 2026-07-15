@@ -180,10 +180,10 @@ button.active { background:#dbeafe; border-color:#2563eb; color:#1d4ed8; }
         Orbital <span style="color:#94a3b8;">(Arc 레일 회전 · LAO / RAO)</span>
       </div>
       <div class="btn-row">
-        <button onclick="rotateCarm('orbital',  15)" style="flex:1;">RAO 15°</button>
-        <button onclick="rotateCarm('orbital',   5)" style="flex:1;">RAO 5°</button>
-        <button onclick="rotateCarm('orbital',  -5)" style="flex:1;">LAO 5°</button>
-        <button onclick="rotateCarm('orbital', -15)" style="flex:1;">LAO 15°</button>
+        <button onclick="rotateCarm('orbital', -15)" style="flex:1;">RAO 15°</button>
+        <button onclick="rotateCarm('orbital',  -5)" style="flex:1;">RAO 5°</button>
+        <button onclick="rotateCarm('orbital',   5)" style="flex:1;">LAO 5°</button>
+        <button onclick="rotateCarm('orbital',  15)" style="flex:1;">LAO 15°</button>
       </div>
       <div id="orbital-display" style="text-align:center;font-size:11px;color:#3b82f6;margin:2px 0 6px;">
         Orbital: 0°
@@ -541,14 +541,14 @@ function setCollisionUI(hit) {
   const banner = document.getElementById('collision-banner');
   if (banner) banner.style.display = hit ? 'flex' : 'none';
   if (carmBodyMesh) {
-    // 충돌 → 분홍, 목표 도달 → 녹색, 그 외 → 흰색
-    const color    = hit ? 0xffdddd : (carmAtTarget ? 0xbbf7d0 : 0xffffff);
-    const emissive = hit ? 0x661111 : (carmAtTarget ? 0x22c55e : 0x000000);
+    // 충돌 → 부드러운 빨강, 목표 도달 → 녹색, 그 외 → 흰색
+    const color    = hit ? 0xff8a8a : (carmAtTarget ? 0xbbf7d0 : 0xffffff);
+    const emissive = hit ? 0xcc3b3b : (carmAtTarget ? 0x22c55e : 0x000000);
     carmBodyMesh.material.color.setHex(color);
     if (carmBodyMesh.material.emissive) {
       carmBodyMesh.material.emissive.setHex(emissive);
       // 음영진 면까지 고르게 채우도록 발광 강도 조절
-      carmBodyMesh.material.emissiveIntensity = carmAtTarget && !hit ? 0.6 : (hit ? 0.5 : 1);
+      carmBodyMesh.material.emissiveIntensity = hit ? 0.45 : (carmAtTarget ? 0.6 : 1);
     }
   }
 }
@@ -933,7 +933,7 @@ function setView(v) {
 let carmAngle = { orbital: 0, oblique: 0 };
 
 function applyCarmAngles() {
-  const orbRad = carmAngle.orbital * Math.PI / 180;
+  const orbRad = -carmAngle.orbital * Math.PI / 180;   // 양수 = 시계방향(LAO)
   const oblRad = carmAngle.oblique * Math.PI / 180;
 
   // Orbital(X축) → Oblique(Z축: 정면 시소 기울기) 쿼터니언 합성
@@ -968,7 +968,7 @@ function resetCarm() {
 
 // ── 고스트 / 목표 각도 ──────────────────────────────────
 function applyAnglesToGroup(group, orbital, oblique) {
-  const orbRad = orbital * Math.PI / 180;
+  const orbRad = -orbital * Math.PI / 180;   // 양수 = 시계방향(LAO)
   const oblRad = oblique * Math.PI / 180;
   const orbQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), orbRad);
   const oblQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1), oblRad);
