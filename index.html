@@ -382,7 +382,8 @@ scene.add(ghostGroup);
 // ── 환자 / 베드 ─────────────────────────────────────────
 const patientBedGroup = new THREE.Group();
 patientBedGroup.position.y = 0.4;    // 기본 높이 (조금 올림)
-patientBedGroup.position.x = -0.4;   // 발 방향(-X)으로 약 10% 이동
+patientBedGroup.position.x = -0.4;   // 발 방향으로 약 10% 이동
+patientBedGroup.rotation.y = Math.PI; // 환자·베드 머리-발 방향 반전
 scene.add(patientBedGroup);
 const patientGroup = new THREE.Group();   // 환자 STL 전용
 
@@ -607,24 +608,27 @@ function loadCarmSTLFromBuffer(buffer) {
   // 기존 내용 비우고 새 메시 추가
   while (carmGroup.children.length) carmGroup.remove(carmGroup.children[0]);
 
-  // 본체 — 흰색
-  const mat  = new THREE.MeshPhongMaterial({ color:0xffffff, shininess:60 });
+  // 본체 — 흰색, 매끄러운 스무스 셰이딩
+  geo.computeVertexNormals();          // 면 경계를 부드럽게
+  const mat  = new THREE.MeshStandardMaterial({
+    color: 0xf2f4f8, metalness: 0.15, roughness: 0.55, flatShading: false
+  });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.scale.setScalar(s);
   carmGroup.add(mesh);
   carmBodyMesh = mesh;   // 충돌 검사용 참조
 
-  // 아웃라인 ① BackSide 확대 메시 (면 외곽)
+  // 아웃라인 ① 실루엣 (BackSide 확대) — 외곽선을 또렷하게
   const outlineMat = new THREE.MeshBasicMaterial({
-    color: 0x334155, side: THREE.BackSide
+    color: 0x475569, side: THREE.BackSide
   });
-  const outlineMesh = new THREE.Mesh(geo.clone(), outlineMat);
-  outlineMesh.scale.setScalar(s * 1.012);
+  const outlineMesh = new THREE.Mesh(geo, outlineMat);
+  outlineMesh.scale.setScalar(s * 1.006);
   carmGroup.add(outlineMesh);
 
-  // 아웃라인 ② EdgesGeometry (누락 엣지 보완)
-  const edgesGeo = new THREE.EdgesGeometry(geo, 20); // 20° 이상 꺾인 엣지만
-  const edgesMat = new THREE.LineBasicMaterial({ color: 0x334155, linewidth: 1 });
+  // 아웃라인 ② 특징 엣지 — 3° 이상 경계
+  const edgesGeo = new THREE.EdgesGeometry(geo, 3);
+  const edgesMat = new THREE.LineBasicMaterial({ color: 0x475569, transparent: true, opacity: 0.85 });
   const edges = new THREE.LineSegments(edgesGeo, edgesMat);
   edges.scale.setScalar(s);
   carmGroup.add(edges);
@@ -874,7 +878,7 @@ function updateHUD() {
 // ── CAMERA ─────────────────────────────────────────────
 let drag=false, rDrag=false, lx=0, ly=0;
 // 기본 시점: 45° 수평 회전, 45° 앙각 (등각 시점)
-const DEFAULT = { theta: -138.77*Math.PI/180, phi: 80.83*Math.PI/180, radius: 8 };
+const DEFAULT = { theta: 41.23*Math.PI/180, phi: 80.83*Math.PI/180, radius: 8 };
 let theta=DEFAULT.theta, phi=DEFAULT.phi, radius=DEFAULT.radius;
 const target = new THREE.Vector3(0,0,0);
 let homeState = null;
